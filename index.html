@@ -1,0 +1,85 @@
+<!DOCTYPE html><html lang="id" data-t="dark"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AppBulky</title><meta name="theme-color" content="#FF6B00">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#0F0F0F;--sf:#1E1E1E;--s2:#2A2A2A;--ink:#fff;--mu:rgba(255,255,255,.72);--ln:rgba(255,255,255,.14);--or:#FF6B00;--gr:#22C55E;--rd:#EF4444}
+html[data-t=light]{--bg:#F5F5F5;--sf:#fff;--s2:#F1EDE8;--ink:#121212;--mu:rgba(18,18,18,.66);--ln:rgba(18,18,18,.12)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:600 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:480px;margin:0 auto;min-height:100dvh;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+header{background:var(--or);color:#111;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;gap:10px}
+header img{width:34px;height:34px}header b{font-size:22px;letter-spacing:.3px}header small{display:block;font-weight:600;font-size:12px}header span{margin-left:auto;background:#111;color:#fff;border-radius:99px;padding:4px 10px;font-size:12px}
+.c{background:var(--sf);border:1px solid var(--ln);border-radius:16px;padding:14px;margin:12px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.k{background:var(--s2);border-radius:12px;padding:10px}.k small{color:var(--mu);font-size:11px;letter-spacing:.1em;text-transform:uppercase;display:block}.k b{font-size:20px}
+input,select{width:100%;min-height:48px;margin:6px 0 10px;background:var(--s2);color:var(--ink);border:1px solid var(--ln);border-radius:12px;padding:0 14px;font:inherit;outline:0}input:focus{border-color:var(--or)}
+label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}
+.b{min-height:48px;border-radius:12px;border:1px solid var(--ln);background:var(--s2);color:var(--ink);font:inherit;font-weight:700;padding:0 14px;width:100%;cursor:pointer}.p{background:var(--or);color:#111;border-color:var(--or)}.d{color:var(--rd)}
+.r{display:flex;gap:8px;margin:8px 0}.r>*{flex:1}.row{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--ln);align-items:center}.row small{color:var(--mu)}
+.bar{display:flex;align-items:flex-end;gap:6px;height:90px}.bar i{flex:1;background:var(--or);border-radius:6px 6px 0 0;min-height:3px}
+#t{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translateX(-50%);background:#111;color:#fff;border:1px solid var(--or);padding:10px 16px;border-radius:12px;z-index:99;max-width:92vw;text-align:center}
+#cam{position:fixed;inset:0;background:#000;z-index:80;display:flex;flex-direction:column}#cam video{flex:1;min-height:0;object-fit:cover;width:100%}#cam .r{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+[hidden]{display:none!important}
+</style></head><body><div id="app"></div><div id="t" hidden></div>
+<div id="cam" hidden><video id="vid" playsinline muted></video><div class="r"><button class="b" onclick="flash()">FLASH</button><button class="b p" onclick="stopCam()">TUTUP</button></div></div>
+<script>
+const LS=localStorage,$=s=>document.querySelector(s),E=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),r1=n=>Math.round(n*10)/10;
+const J=(k,d)=>{try{return JSON.parse(LS[k])||d}catch(e){return d}};
+let S=J('ab_s',null),Q=J('ab_q',[]),D=J('ab_d',null),view='home',sesi=0,stream=null,raf=0,torch=false,fl=0,asked=LS.ab_ask||'';
+const sv=()=>{LS.ab_s=JSON.stringify(S);LS.ab_q=JSON.stringify(Q)},div=()=>+LS.ab_div||6000,nowHM=()=>new Date().toTimeString().slice(0,5),today=()=>new Date().toLocaleDateString('sv');
+document.documentElement.dataset.t=LS.ab_t||'dark';
+function toast(m){const t=$('#t');t.textContent=m;t.hidden=0;clearTimeout(toast.i);toast.i=setTimeout(()=>t.hidden=1,2600)}
+function beep(){try{const a=beep.a||(beep.a=new(window.AudioContext||webkitAudioContext)),o=a.createOscillator(),g=a.createGain();o.frequency.value=1318;g.gain.value=.3;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.18)}catch(e){}navigator.vibrate&&navigator.vibrate(60)}
+async function api(gas,p){let r,j;try{r=await fetch(gas,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(p)})}catch(e){const x=new Error('Tidak ada koneksi');x.net=1;throw x}
+try{j=await r.json()}catch(e){const x=new Error('Respon server tidak valid. Cek URL GAS & akses "Anyone".');x.net=1;throw x}
+if(!j.ok)throw new Error(j.error||'Gagal');return j}
+const call=(a,d={})=>api(S.gas,{action:a,code:S.code,pin:S.pin,...d});
+function go(v){stopCam();view=v;render();if(v==='home')refresh()}
+async function login(){const f=i=>$(i).value.trim(),gas=f('#gas'),code=f('#kode').toUpperCase(),pin=f('#pin'),name=f('#nama'),sid=f('#sid');
+if(!gas||!code||!pin||!name||!sid)return toast('Lengkapi semua kolom');
+if(!/^https:\/\/script\.google\.com\/.+\/exec/.test(gas))return toast('URL GAS harus berakhiran /exec');
+try{const m=sid.match(/\/d\/([\w-]+)/),j=await api(gas,{action:'login',code,pin,sheetId:m?m[1]:sid});S={gas,code,pin,name,hub:j.hubName,admin:j.admin};sv();go('home')}catch(e){toast(e.message)}}
+function logout(){if(Q.length&&!confirm(Q.length+' data belum terkirim akan tetap tersimpan di HP. Keluar?'))return;S=null;D=null;LS.removeItem('ab_s');LS.removeItem('ab_d');render()}
+async function refresh(){if(!S)return;try{await flush();D=await call('dashboard');LS.ab_d=JSON.stringify(D)}catch(e){if(!e.net)toast(e.message)}if(view==='home')render()}
+async function flush(){if(fl||!S||!Q.length||!navigator.onLine)return;fl=1;try{while(Q.length){const q=Q[0];try{await call('save',{...q,div:div()})}catch(e){if(e.net)break;toast('Ditolak '+q.resi+': '+e.message)}Q.shift();sv();badge()}}finally{fl=0}}
+const badge=()=>{const b=$('#qb');if(b)b.textContent=Q.length?Q.length+' antre':'online'};
+function render(){const a=$('#app');if(!S){a.innerHTML=`<header><img src="logo.png" alt=""><b>AppBulky</b></header><div class="c"><label>URL GAS Web App (/exec)</label><input id="gas" value="${E(LS.ab_gas||'')}" placeholder="https://script.google.com/.../exec"><label>Kode Hub</label><input id="kode" autocapitalize="characters"><label>PIN (Hub atau Admin)</label><input id="pin" type="password" inputmode="numeric"><label>Link / ID Sheet Hub</label><input id="sid"><label>Nama Pengukur</label><input id="nama"><button class="b p" onclick="LS.ab_gas=$('#gas').value.trim();login()">AKTIFKAN & MASUK</button></div>`;return}
+const h=`<header><img src="logo.png" alt=""><div><b>AppBulky</b><small>${E(S.hub||'')} · ${E(S.name)}${S.admin?' · Admin':''}</small></div><span id="qb"></span></header>`;
+a.innerHTML=h+(view==='measure'?measure():home());badge()}
+function home(){const d=D||{today:{n:0,kg:0,avg:0,p:0,l:0,t:0},last7:[],rank:[],recent:[],closed:false,jam:''},t=d.today,mx=Math.max(1,...d.last7.map(x=>x.n));
+return `<div class="c"><button class="b p" style="min-height:64px;font-size:18px" onclick="${d.closed?"toast('Hub sudah tutup')":"go('measure')"}">${d.closed?'HUB TUTUP':'UKUR PAKET'}</button></div>
+<div class="c"><div class="g"><div class="k"><small>Total paket</small><b>${t.n}</b></div><div class="k"><small>Total berat tagih</small><b>${t.kg} kg</b></div><div class="k"><small>Rata berat</small><b>${t.avg} kg</b></div><div class="k"><small>Rata ukuran</small><b>${t.p}×${t.l}×${t.t}</b></div><div class="k"><small>Antrean kirim</small><b>${Q.length}</b></div><div class="k"><small>Jam closing</small><b>${E(d.jam||'-')}</b></div></div></div>
+<div class="c"><label>7 hari terakhir</label><div class="bar">${d.last7.map(x=>`<i title="${x.k}: ${x.n}" style="height:${x.n/mx*100}%"></i>`).join('')}</div></div>
+<div class="c"><label>Peringkat hari ini</label>${d.rank.map((x,i)=>`<div class="row"><span>${i+1}. ${E(x.nama)}</span><b>${x.n} paket · ${r1(x.kg)} kg</b></div>`).join('')||'<small>Belum ada data</small>'}</div>
+<div class="c"><label>Paket terakhir</label>${d.recent.slice(0,8).map(x=>`<div class="row"><span>${E(x.resi)}<br><small>${x.p}×${x.l}×${x.t} · ${E(x.by)}</small></span><span><b>${x.kg} kg</b>${S.admin?` <button class="b d" style="min-height:36px;width:auto" onclick="del('${E(x.resi)}')">✕</button>`:''}</span></div>`).join('')||'<small>Belum ada data</small>'}</div>
+<div class="c"><label>Download CSV (5 kolom)</label><div class="r"><button class="b" onclick="dl('today')">HARI INI</button><button class="b" onclick="dl('all')">SEMUA</button></div><div class="r"><input type="date" id="d1"><input type="date" id="d2"></div><button class="b" onclick="dl('range')">DOWNLOAD RENTANG</button></div>
+<div class="c">${S.admin?`<label>Jam closing</label><div class="r"><input id="jam" type="time" value="${E(d.jam||'20:00')}"><button class="b" onclick="setJam()">SIMPAN</button></div><div class="r"><button class="b ${d.closed?'':'p'}" onclick="closing(${d.closed})">${d.closed?'BUKA HUB':'CLOSING HARI INI'}</button><button class="b" onclick="wa()">LAPORAN WA</button></div>`:''}<div class="r"><button class="b" onclick="LS.ab_t=document.documentElement.dataset.t=document.documentElement.dataset.t==='dark'?'light':'dark'">TEMA</button><button class="b" onclick="logout()">KELUAR</button></div></div>`}
+function measure(){return `<div class="c"><label>No Resi</label><div class="r"><input id="resi" autocapitalize="characters" style="flex:3"><button class="b p" style="flex:1" onclick="scan()">SCAN</button></div>
+<div class="g"><div><label>Panjang (cm)</label><input id="p" type="number" inputmode="decimal" oninput="calc()"></div><div><label>Lebar (cm)</label><input id="l" type="number" inputmode="decimal" oninput="calc()"></div><div><label>Tinggi (cm)</label><input id="t" type="number" inputmode="decimal" oninput="calc()"></div><div><label>Berat timbang (kg)</label><input id="w" type="number" inputmode="decimal" oninput="calc()"></div></div>
+<label>Pembagi volumetrik</label><select id="dv" onchange="LS.ab_div=this.value;calc()"><option ${div()==6000?'selected':''}>6000</option><option ${div()==5000?'selected':''}>5000</option></select>
+<div class="k" id="calc" style="margin-bottom:10px"></div><div class="r"><button class="b" onclick="go('home')">‹ KEMBALI</button><button class="b" onclick="clr()">BATAL</button><button class="b p" onclick="save()">SIMPAN</button></div><small style="color:var(--mu)">Sesi ini: ${sesi} paket</small></div>`}
+function vals(){const g=k=>parseFloat($('#'+k).value),p=g('p'),l=g('l'),t=g('t'),w=g('w');return{p,l,t,w,ok:[p,l,t,w].every(x=>x>0)&&p<=300&&l<=300&&t<=300&&w<=200}}
+function calc(){const v=vals(),c=$('#calc');if(!v.ok){c.innerHTML='<small>Isi ukuran & berat</small>';return}const vol=r1(v.p*v.l*v.t/div());c.innerHTML=`<small>Volumetrik ${vol} kg · Timbang ${v.w} kg</small><b>Berat tagih ${r1(Math.max(v.w,vol))} kg</b>`}
+function clr(){['resi','p','l','t','w'].forEach(k=>$('#'+k).value='');calc()}
+function save(){if(D&&D.closed)return toast('Hub sudah tutup');const resi=$('#resi').value.trim().toUpperCase(),v=vals();
+if(!/^[A-Z0-9\-]{6,40}$/.test(resi))return toast('No Resi tidak valid (6-40 huruf/angka)');if(!v.ok)return toast('Ukuran ≤300 cm & berat ≤200 kg, semua wajib diisi');
+if(Q.some(q=>q.resi===resi)||(D&&D.recent.some(r=>r.resi===resi)))return toast('Resi sudah tersimpan');
+const vol=r1(v.p*v.l*v.t/div()),chg=r1(Math.max(v.w,vol));Q.push({id:(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()),resi,p:v.p,l:v.l,t:v.t,w:v.w,by:S.name,ts:Date.now()});sv();
+if(D)D.recent.unshift({resi,kg:chg,p:v.p,l:v.l,t:v.t,by:S.name});beep();sesi++;toast('Tersimpan '+resi+' — '+chg+' kg');clr();badge();flush()}
+async function scan(){if(!('BarcodeDetector'in window))return toast('Browser tidak mendukung scan, ketik manual');
+try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})}catch(e){return toast('Izin kamera ditolak, ketik manual')}
+$('#cam').hidden=0;const v=$('#vid');v.srcObject=stream;await v.play();const det=new BarcodeDetector();
+(async function lp(){if(!stream)return;try{const r=await det.detect(v);if(r[0]){$('#resi').value=r[0].rawValue.toUpperCase();beep();stopCam();return}}catch(e){}raf=setTimeout(lp,200)})()}
+function stopCam(){clearTimeout(raf);stream&&stream.getTracks().forEach(t=>t.stop());stream=null;torch=false;$('#cam').hidden=1}
+async function flash(){const tr=stream&&stream.getVideoTracks()[0];if(!tr||!(tr.getCapabilities&&tr.getCapabilities().torch))return toast('Flash tidak didukung perangkat ini');torch=!torch;await tr.applyConstraints({advanced:[{torch}]})}
+async function dl(mode){try{const j=await call('download',{mode,start:($('#d1')||{}).value,end:($('#d2')||{}).value}),q=v=>'"'+String(v).replace(/"/g,'""')+'"',csv='\ufeff'+[['No Resi','Berat','Panjang','Lebar','Tinggi'],...j.rows].map(r=>r.map(q).join(',')).join('\r\n'),a=document.createElement('a');
+a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='appbulky-'+mode+'-'+today()+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);toast(j.rows.length+' paket diunduh')}catch(e){toast(e.message)}}
+async function del(resi){if(!confirm('Hapus '+resi+'?'))return;try{await call('delete',{resi});toast('Dihapus');refresh()}catch(e){toast(e.message)}}
+async function setJam(){try{await call('settings',{jam:$('#jam').value});toast('Jam closing disimpan');refresh()}catch(e){toast(e.message)}}
+async function closing(open){if(!confirm(open?'Buka Hub kembali?':'Tutup Hub dan buat laporan?'))return;try{await flush();await call(open?'open':'close');await refresh();if(!open)wa()}catch(e){toast(e.message)}}
+function wa(){const d=D;if(!d)return;const t=d.today;window.open('https://wa.me/?text='+encodeURIComponent(`Closing ${S.hub} - ${today()}\nTotal paket: ${t.n}\nTotal berat tagih: ${t.kg} kg\nRata berat: ${t.avg} kg\nRata ukuran: ${t.p}x${t.l}x${t.t} cm\n`+d.rank.slice(0,3).map((x,i)=>`${i+1}. ${x.nama}: ${x.n} paket`).join('\n')))}
+setInterval(()=>{flush();if(S&&S.admin&&D&&!D.closed&&D.jam&&nowHM()>=D.jam&&asked!==today()){asked=LS.ab_ask=today();if(confirm('Sudah jam closing. Tutup Hub sekarang?'))closing(false)}},30000);
+addEventListener('online',()=>{flush();refresh()});
+if('serviceWorker'in navigator){const had=!!navigator.serviceWorker.controller;navigator.serviceWorker.register('sw.js').catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>had&&toast('Versi baru terpasang. Buka ulang app.'))}
+render();if(S)refresh();
+</script></body></html>
